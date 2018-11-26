@@ -123,36 +123,43 @@ Event.register('picker-show-underground-belt-paths', highlight_underground)
 
 
 
---[[local function highlight_belts(player)
+local function highlight_belts(player)
     local player, pdata = Player.get(event.player_index)
     local belt_table = {}
     local read_entity_data = {}
     local all_entities_marked = {}
     local find_belt = player.surface.find_entities_filtered
+    local position_translate = Position.translate
 
-    local function read_forward_belt()
-        local forward_position = Position.translate(entity_position, entity_direction, 1)
+    local function read_forward_belt(entity_position, entity_direction)
+        local forward_position = position_translate(entity_position, entity_direction, 1)
         local forward_entity = find_belt({
             position = forward_position,
             type = {'transport-belt', 'underground-belt', 'splitter'},
         })
         if forward_entity then
             local forward_entity_direction = forward_entity.direction
-            if not (forward_entity_direction == op_dir(entity_direction) then
-                return {forward_entity,forward_entity_direction}
+            if not (forward_entity_direction == op_dir(entity_direction)) then
+                local forward_entity_type = forward_entity.type
+                if forward_entity_type == 'underground-belt' and forward_entity_direction ~= entity_direction then
+                    return {forward_entity, forward_entity_direction, forward_position, forward_entity_type}
+                else
+                    return {false,false,false,false}
+                end
+            else
+                return {false,false,false,false}
             end
         end
     end
 
     local function read_forward_splitter()
-        local forward_position = Position.translate(entity_position, entity_direction, 1)
         local forward_entity = find_belt({
-            position = forward_position,
+            area = Position(entity_position):copy():translate(entity_direction, 1):expand_to_area(1),
             type = {'transport-belt', 'underground-belt', 'splitter'},
         })
         if forward_entity then
             local forward_entity_direction = forward_entity.direction
-            if not (forward_entity_direction == op_dir(entity_direction) then
+            if not (forward_entity_direction == op_dir(entity_direction)) then
                 return {forward_entity,forward_entity_direction}
             end
         end
@@ -160,8 +167,11 @@ Event.register('picker-show-underground-belt-paths', highlight_underground)
 
     local function read_belts(entity, entity_unit_number, entity_position, entity_type, entity_direction)
 
-        local function step_forward(entity, entity_unit_number, entity_position, entity_type, entity_direction, previous_entity)
+        local function step_forward(entity, entity_unit_number, entity_position, entity_type, entity_direction, previous_entity_un)
             local entity_neighbours = {}
+            if previous_entity_un then
+                entity_neighbours[#entity_neighbours + 1] = previous_entity_un
+            end
             --? Cache current entity
             read_entity_data[entity_unit_number] = {
                 entity_position,
@@ -170,21 +180,36 @@ Event.register('picker-show-underground-belt-paths', highlight_underground)
                 entity_direction,
                 entity
             }
+            --? Underground belt handling
             if entity_type == 'underground-belt' then
                 local ug_neighbour = entity.neighbours
+                --? UG Belts always return an entity reference as the neighbour
                 if ug_neighbour then
                     local ug_neighbour_type = 'underground-belt'
                     local ug_neighbour_direction = entity_direction
                     local ug_neighbour_position = neighbour.position
-                    local ug_neighbour_unit_number = neighbour.unit_number
-                    entity_neighbours[#entity_neighbours + 1] = ug_neighbour_unit_number
-                    if not read_entity_data[neighbour_unit_number] then
-                        if pipes_read < max_pipes then
-                            step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, 'underground-belt', ug_neighbour_direction, entity)
+                    --? Make sure we don't get stuck in a recursive belt loop and only step forward.
+                    if entity.belt_to_ground_type == 'input' then
+                        local ug_neighbour_unit_number = neighbour.unit_number
+                        entity_neighbours[#entity_neighbours + 1] = ug_neighbour_unit_number
+                        if not read_entity_data[neighbour_unit_number] then
+                            if belts_read < max_belts then
+                                step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, entity_unit_number)
+                            end
                         end
                     end
                 else
-
+                    local forward_entity, forward_entity_direction, forward_entity_position, forward_entity_type = read_forward_belt(entity_position, entity_direction)
+                    if forward_entity then
+                        local forward_entity_unit_number = forward_entity.unit_number
+                        entity_neighbours[#entity_neighbours + 1] = forward_entity_unit_number
+                        if not read_entity_data[forward_entity_unit_number] then
+                            if belts_read < max_belts then
+                                step_forward(forward_entity, forward_entity_unit_number, forward_entity_position, forward_entity_type, forward_entity_direction, entity_unit_number)
+                            end
+                        end
+                    end
+                end
             end
 
 
@@ -200,4 +225,3 @@ Event.register('picker-show-underground-belt-paths', highlight_underground)
     local starter_entity_type = starter_entity.type
     local starter_entity_position = starter_entity.position
     read_belts(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction)
-]]--
