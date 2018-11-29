@@ -9,6 +9,7 @@ local Event = require('lib/event')
 local Position = require('lib/position')
 local op_dir = Position.opposite_direction
 
+
 local function get_ew(delta_x)
     return delta_x > 0 and defines.direction.west or defines.direction.east
 end
@@ -58,9 +59,13 @@ local function show_underground_sprites(event)
         local entity_unit_number = entity.unit_number
         local entity_position = entity.position
         local entity_neighbours = entity.neighbours
+        local entity_belt_direction = entity.belt_to_ground_type
+        --local entity_name = entity.name
         read_entity_data[entity_unit_number] = {
             entity_position,
             entity_neighbours,
+            entity_belt_direction,
+            --entity_name
         }
     end
     for unit_number, entity_data in pairs(read_entity_data) do
@@ -85,19 +90,23 @@ local function show_underground_sprites(event)
             if not all_entities_marked[neighbour_unit_number] then
                 local start_position = Position.translate(entity_data[1], get_direction(entity_data[1], neighbour_data[1]), 0.5)
                 local end_position = Position.translate(neighbour_data[1], get_direction(neighbour_data[1], entity_data[1]), 0.5)
-                markers_made = markers_made + 1
-                all_markers[markers_made] =
-                    create {
-                    name = 'picker-underground-marker-beam',
-                    position = entity_data[1],
-                    source_position = {start_position.x, start_position.y + 1},
-                    --TODO 0.17 source_position = {entity_position.x, entity_position.y - 0.1},
-                    target_position = end_position,
-                    duration = 2000000000
-                }
+                if entity_data[3] == 'input' then
+                    markers_made = markers_made + 1
+                    all_markers[markers_made] =
+                        create {
+                        name = 'picker-underground-belt-marker-beam',
+                        position = entity_data[1],
+                        source_position = {start_position.x, start_position.y + 1},
+                        --TODO 0.17 source_position = {entity_position.x, entity_position.y - 0.1},
+                        target_position = end_position,
+                        duration = 2000000000
+                    }
+                    all_entities_marked[unit_number] = true
+
+                end
             end
         end
-        all_entities_marked[unit_number] = true
+
     end
 end
 
@@ -127,10 +136,29 @@ local allowed_types = {
     ['splitter'] = true
 }
 
-local function copy_position(position)
-    local x,y = position.x,position.y
-    return {x=x,y=y}
-end
+--[[local splitter_check_table = {
+    [defines.direction.north] = {
+        left = {x = -0.5, y = -1},
+        right = {x = 0.5, y = -1}
+    },
+    [defines.direction.east] = {
+        left = {x = 1, y = -0.5},
+        right = {x = 1, y = 0.5}
+    },
+    [defines.direction.south] = {
+        left = {x = 0.5, y = 1},
+        right = {x = -0.5, y = 1}
+    },
+    [defines.direction.west] = {
+        left = {x = -1, y = 0.5},
+        right = {x = -1, y = -0.5}
+    },
+}]]--
+
+--[[local function copy_position(position)
+    return {x=position.x,y=position.y}
+end]]--
+
 local function highlight_belts(selected_entity, player_index)
     local player, pdata = Player.get(player_index)
     --local belt_table = {}
@@ -155,16 +183,48 @@ local function highlight_belts(selected_entity, player_index)
         })[1]
     end
 
+    local splitter_check_table = {
+        [defines.direction.north] = {
+            left = Position.new({x = -0.5, y = -1}),
+            right = Position.new({x = 0.5, y = -1})
+        },
+        [defines.direction.east] = {
+            left = Position.new({x = 1, y = -0.5}),
+            right = Position.new({x = 1, y = 0.5})
+        },
+        [defines.direction.south] = {
+            left = Position.new({x = 0.5, y = 1}),
+            right = Position.new({x = -0.5, y = 1})
+        },
+        [defines.direction.west] = {
+            left = Position.new({x = -1, y = 0.5}),
+            right = Position.new({x = -1, y = -0.5})
+        },
+    }
+
     -- TODO Make two individual point checks and return two entry table
     local function read_forward_splitter(entity_position, entity_direction)
-        local pos = copy_position(entity_position)
-        pos = Position.translate(pos, entity_direction, 1)
-        local area_to_look = Position.expand_to_area(pos, 0.75)
-        game.print(serpent.line(area_to_look))
-        return find_belt({
-            area = area_to_look,
-            type = {'transport-belt', 'underground-belt', 'splitter'},
-        })
+        local shift_directions = splitter_check_table[entity_direction]
+        --local left_pos = Position(entity_position):copy():add(shift_directions.left):copy()
+        --local right_pos = Position(entity_position):copy():add(shift_directions.right):copy()
+        local left_pos = entity_position + shift_directions.left
+        local right_pos = entity_position + shift_directions.right
+        return {
+            left_entity = {
+                entity = find_belt({
+                    position = left_pos,
+                    type = {'transport-belt', 'underground-belt', 'splitter'},
+                }),
+                position = left_pos
+            },
+            right_entity = {
+                entity = find_belt({
+                    position = right_pos,
+                    type = {'transport-belt', 'underground-belt', 'splitter'},
+                }),
+                position = right_pos
+            }
+        }
     end
 
     local function read_belts(starter_entity)
@@ -172,7 +232,7 @@ local function highlight_belts(selected_entity, player_index)
         local starter_entity_direction = starter_entity.direction
         local starter_entity_type = starter_entity.type
         local starter_entity_position = starter_entity.position
-        local function step_forward(entity, entity_unit_number, entity_position, entity_type, entity_direction, previous_entity_un)
+        local function step_forward(entity, entity_unit_number, entity_position, entity_type, entity_direction, previous_entity_un, belt_to_ground_direction)
             local entity_neighbours = {}
             if previous_entity_un then
                 entity_neighbours[#entity_neighbours + 1] = previous_entity_un
@@ -184,13 +244,15 @@ local function highlight_belts(selected_entity, player_index)
                 entity_neighbours,
                 entity_type,
                 entity_direction,
-                entity
+                entity,
+                belt_to_ground_direction
             }
             --? Underground belt handling
             if entity_type == 'underground-belt' then
                 local ug_neighbour = entity.neighbours
+                local ug_belt_to_ground_type = entity.belt_to_ground_type
                 --? UG Belts always return an entity reference as the neighbour
-                if ug_neighbour and entity.belt_to_ground_type == 'input' then
+                if ug_neighbour and ug_belt_to_ground_type == 'input' then
                     local ug_neighbour_type = 'underground-belt'
                     local ug_neighbour_direction = entity_direction
                     local ug_neighbour_position = ug_neighbour.position
@@ -200,12 +262,12 @@ local function highlight_belts(selected_entity, player_index)
                         entity_neighbours[#entity_neighbours + 1] = ug_neighbour_unit_number
                         if not read_entity_data[ug_neighbour_unit_number] then
                             --if belts_read < max_belts then
-                                step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, entity_unit_number)
+                                step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, entity_unit_number, ug_belt_to_ground_type)
                             --end
                         end
                     --end
                 else
-                    local forward_position = copy_position(Position.translate(entity_position, entity_direction, 1))
+                    local forward_position = Position.new(entity_position):copy():translate(entity_direction, 1)
                     local forward_entity = read_forward_belt(forward_position)
                     if forward_entity then
                         local forward_entity_direction = forward_entity.direction
@@ -223,7 +285,7 @@ local function highlight_belts(selected_entity, player_index)
                     end
                 end
             elseif entity_type == 'transport-belt' then
-                local forward_position = copy_position(Position.translate(entity_position, entity_direction, 1))
+                local forward_position = Position.new(entity_position):copy():translate(entity_direction, 1)
                 local forward_entity = read_forward_belt(forward_position)
                 if forward_entity then
                     local forward_entity_direction = forward_entity.direction
@@ -264,13 +326,29 @@ local function highlight_belts(selected_entity, player_index)
 
     for unit_number, current_entity in pairs(read_entity_data) do
         if not all_entities_marked[unit_number] then
-            markers_made = markers_made + 1
-            all_markers[markers_made] =
-                create {
-                name = 'picker-pipe-dot-bad',
-                position = current_entity[1]
-            }
-            all_entities_marked[unit_number] = true
+            if current_entity[3] == 'underground-belt' and current_entity[6] and current_entity[6] == 'input' then
+                local start_position = Position.translate(current_entity[1], get_direction(current_entity[1], current_entity[5].neighbours.position), 0.5)
+                local end_position = Position.translate(current_entity[5].neighbours.position, get_direction(current_entity[5].neighbours.position, current_entity[1]), 0.5)
+                markers_made = markers_made + 1
+                all_markers[markers_made] =
+                    create {
+                    name = 'picker-underground-belt-marker-beam',
+                    position = current_entity[1],
+                    source_position = {end_position.x, end_position.y + 1},
+                    --TODO 0.17 source_position = {entity_position.x, entity_position.y - 0.1},
+                    target_position = start_position,
+                    duration = 2000000000
+                }
+                all_entities_marked[unit_number] = true
+            else
+                markers_made = markers_made + 1
+                all_markers[markers_made] =
+                    create {
+                    name = 'picker-pipe-dot-bad',
+                    position = current_entity[1]
+                }
+                all_entities_marked[unit_number] = true
+            end
         end
     end
 end

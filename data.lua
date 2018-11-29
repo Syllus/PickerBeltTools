@@ -22,3 +22,5 @@ data:extend {
     },]]--
 
 }
+
+require('prototypes/belt-highlight')
