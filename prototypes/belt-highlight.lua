@@ -1,3 +1,63 @@
+local merge = _G.util.merge
+
+local base_entity = {
+    type = 'simple-entity',
+    name = 'fillerstuff',
+    flags = {'placeable-neutral', 'not-on-map','placeable-off-grid'},
+    subgroup = 'remnants',
+    order = 'd[remnants]-c[wall]',
+    icon = '__PickerBeltTools__/graphics/entity/markers/32x32highlightergood.png',
+    icon_size = 32,
+    --time_before_removed = 2000000000,
+    collision_box = {{0, 0}, {0, 0}},
+    selection_box = {{-0.5, -0.5}, {0.5, 0.5}},
+    collision_mask = {"layer-14"},
+    selectable_in_game = false,
+    --final_render_layer = 'selection-box',
+    animations = {{
+        width = 64,
+        height = 64,
+        line_length = 8,
+        frame_count = 16,
+        direction_count = 1,
+        animation_speed = 0.03125 * 32,
+        scale = 0.5,
+        filename = '__PickerBeltTools__/graphics/entity/markers/32x32highlightergood.png'
+    }}
+}
+
+local belt_marker_table = {
+    ['picker-belt-marker-straight-both-lanes'] = 'belt-animated-both-lane',
+    --['picker-pump-marker-good'] = 'pump-marker-good'
+}
+local belt_directions = {
+    '-n',
+    '-e',
+    '-s',
+    '-w'
+}
+
+local new_markers = {}
+for belt_marker_name, images in pairs(belt_marker_table) do
+    for _, directions in pairs(belt_directions) do
+        local current_entity = util.table.deepcopy(base_entity)
+        current_entity.type = 'simple-entity'
+        current_entity.name = belt_marker_name .. directions
+        --current_entity.animation.shift = {0, -0.1}
+        current_entity.animations[1].filename = '__PickerBeltTools__/graphics/entity/markers/' .. images .. directions .. '.png'
+        new_markers[#new_markers + 1] = current_entity
+    end
+end
+
+for _, stuff in pairs(new_markers) do
+    data:extend {
+        merge {
+            base_entity,
+            stuff
+        }
+    }
+end
+
 
 local base_beam = util.table.deepcopy(data.raw['beam']['electric-beam-no-sound'])
 base_beam.name = 'picker-underground-belt-marker-beam'

@@ -18,6 +18,12 @@ local function get_ns(delta_y)
     return delta_y > 0 and defines.direction.north or defines.direction.south
 end
 
+local map_direction = {
+    [0] = '-n',
+    [2] = '-e',
+    [4] = '-s',
+    [6] = '-w'
+}
 local function get_direction(entity_position, neighbour_position)
     local abs = math.abs
     local delta_x = entity_position.x - neighbour_position.x
@@ -341,9 +347,9 @@ local function highlight_belts(selected_entity, player_index)
     for unit_number, current_entity in pairs(read_entity_data) do
         if not all_entities_marked[unit_number] then
             if current_entity[3] == 'underground-belt' and current_entity[6] == 'input' and current_entity[2].underground_neighbour then
-                local start_position = Position.translate(current_entity[1], current_entity[4], 0.5)
+                local start_position = Position(current_entity[1]):copy():translate(current_entity[4], 0.5)
                 local neighbour_entity_data = read_entity_data[current_entity[2].underground_neighbour]
-                local end_position = Position.translate(neighbour_entity_data[1], op_dir(current_entity[4]), 0.5)
+                local end_position = Position(neighbour_entity_data[1]):copy():translate(op_dir(current_entity[4]), 0.5)
                 markers_made = markers_made + 1
                 all_markers[markers_made] =
                     create {
@@ -359,6 +365,14 @@ local function highlight_belts(selected_entity, player_index)
                     --TODO 0.17 source_position = {entity_position.x, entity_position.y - 0.1},
                     target_position = end_position,
                     duration = 2000000000
+                }
+                all_entities_marked[unit_number] = true
+            elseif current_entity[3] == 'transport-belt' then
+                markers_made = markers_made + 1
+                all_markers[markers_made] =
+                    create {
+                    name = 'picker-belt-marker-straight-both-lanes' .. map_direction[current_entity[4]],
+                    position = current_entity[1]
                 }
                 all_entities_marked[unit_number] = true
             else
