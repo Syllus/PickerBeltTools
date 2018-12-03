@@ -19,11 +19,31 @@ local function get_ns(delta_y)
 end
 
 local map_direction = {
-    [0] = '-n',
-    [2] = '-e',
-    [4] = '-s',
-    [6] = '-w'
+    [0] = 0,
+    [2] = 1,
+    [4] = 2,
+    [6] = 3
 }
+
+local marker_entry = {
+    [0] = 1,
+    [1] = 2,
+    [4] = 3,
+    [5] = 4,
+    [16] = 5,
+    [17] = 6,
+    [20] = 7,
+    [21] = 8,
+    [64] = 9,
+    [65] = 10,
+    [68] = 11,
+    [69] = 12,
+    [80] = 13,
+    [81] = 14,
+    [84] = 15,
+    [85] = 16
+}
+
 local function get_direction(entity_position, neighbour_position)
     local abs = math.abs
     local delta_x = entity_position.x - neighbour_position.x
@@ -216,16 +236,46 @@ local function highlight_belts(selected_entity, player_index)
         }
     end
 
+    local function get_directions_belt(current_entity)
+        local table_entry = 0
+        --? Store the direction as the index to the table. This allows multiple references to the same direction, such as in the case of pipemod pipes.
+        local entity_neighbours = current_entity[2]
+        if entity_neighbours.input then
+            for _, direction_data in pairs(entity_neighbours.input) do
+                table_entry = table_entry + (2 ^ op_dir(direction_data[2]))
+            end
+        end
+        if current_entity[2].output_target then
+            table_entry = table_entry + (2 ^ current_entity[4])
+        end
+        return table_entry
+    end
+
+    local function mark_belt(unit_number,current_entity)
+        markers_made = markers_made + 1
+        local new_marker  = create {
+            name = 'picker-belt-marker-full',
+            position = current_entity[1]
+        }
+        local graphics_change = (16*map_direction[current_entity[4]]) + marker_entry[get_directions_belt(current_entity)]
+        game.print(graphics_change)
+        new_marker.graphics_variation = graphics_change
+        all_markers[markers_made] = new_marker
+        all_entities_marked[unit_number] = true
+    end
+
     local function read_belts(starter_entity)
         local starter_unit_number = starter_entity.unit_number
         local starter_entity_direction = starter_entity.direction
         local starter_entity_type = starter_entity.type
         local starter_entity_position = starter_entity.position
 
-        local function step_forward(entity, entity_unit_number, entity_position, entity_type, entity_direction, belt_to_ground_direction, previous_entity_unit_number)
+        local function step_forward(entity, entity_unit_number, entity_position, entity_type, entity_direction, belt_to_ground_direction, previous_entity_unit_number, previous_entity_direction)
             local entity_neighbours = {}
             if previous_entity_unit_number then
-                entity_neighbours.input = previous_entity_unit_number
+                entity_neighbours.input = {
+                    {previous_entity_unit_number,previous_entity_direction}
+                }
             end
             --? Cache current entity
             read_entity_data[entity_unit_number] =
@@ -251,11 +301,14 @@ local function highlight_belts(selected_entity, player_index)
                         --? Make sure we don't get stuck in a recursive belt loop and only step forward.
                         --if entity.belt_to_ground_type == 'input' then
                             local ug_neighbour_unit_number = ug_neighbour.unit_number
-                            entity_neighbours.underground_neighbour = ug_neighbour_unit_number
+                            entity_neighbours.output_target = ug_neighbour_unit_number
                             if not read_entity_data[ug_neighbour_unit_number] then
                                 --if belts_read < max_belts then
-                                    step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, 'output', entity_unit_number)
+                                step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, 'output', entity_unit_number, entity_direction)
                                 --end
+                            else
+                                local input = read_entity_data[ug_neighbour_unit_number].input
+                                input[#input + 1] = {entity_unit_number,entity_direction}
                             end
                         --end
                     end
@@ -273,8 +326,11 @@ local function highlight_belts(selected_entity, player_index)
                             entity_neighbours.output_target = forward_entity_unit_number
                             if not read_entity_data[forward_entity_unit_number] then
                                 --if belts_read < max_belts then
-                                    step_forward(forward_entity, forward_entity_unit_number, forward_entity_type == 'splitter' and forward_entity.position or forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number)
+                                step_forward(forward_entity, forward_entity_unit_number, forward_entity_type == 'splitter' and forward_entity.position or forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction)
                                 --end
+                            elseif not forward_entity_type == 'splitter' then
+                                local input = read_entity_data[forward_entity_unit_number].input
+                                input[#input + 1] = {entity_unit_number,entity_direction}
                             end
                         end
                     end
@@ -294,8 +350,11 @@ local function highlight_belts(selected_entity, player_index)
                         entity_neighbours.output_target = forward_entity_unit_number
                         if not read_entity_data[forward_entity_unit_number] then
                             --if belts_read < max_belts then
-                                step_forward(forward_entity, forward_entity_unit_number, forward_entity_type == 'splitter' and forward_entity.position or forward_position, forward_entity_type, forward_entity_direction, entity_unit_number)
+                                step_forward(forward_entity, forward_entity_unit_number, forward_entity_type == 'splitter' and forward_entity.position or forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction)
                             --end
+                        elseif not forward_entity_type == 'splitter' then
+                            local input = read_entity_data[forward_entity_unit_number].input
+                            input[#input + 1] = {entity_unit_number,entity_direction}
                         end
                     end
                 end
@@ -315,8 +374,11 @@ local function highlight_belts(selected_entity, player_index)
                         entity_neighbours.left_output_target = left_entity_unit_number
                         if not read_entity_data[left_entity_unit_number] then
                             --if belts_read < max_belts then
-                                step_forward(forward_entities.left_entity.entity, left_entity_unit_number, left_entity_type == 'splitter' and forward_entities.left_entity.entity.position or left_entity_position, left_entity_type, left_entity_direction, nil, entity_unit_number)
+                                step_forward(forward_entities.left_entity.entity, left_entity_unit_number, left_entity_type == 'splitter' and forward_entities.left_entity.entity.position or left_entity_position, left_entity_type, left_entity_direction, nil, entity_unit_number, entity_direction)
                             --end
+                        elseif not left_entity_type == 'splitter' then
+                            local input = read_entity_data[left_entity_unit_number].input
+                            input[#input + 1] = {entity_unit_number,entity_direction}
                         end
                     end
                 end
@@ -333,8 +395,11 @@ local function highlight_belts(selected_entity, player_index)
                         entity_neighbours.right_output_target = right_entity_unit_number
                         if not read_entity_data[right_entity_unit_number] then
                             --if belts_read < max_belts then
-                                step_forward(forward_entities.right_entity.entity, right_entity_unit_number, right_entity_type == 'splitter' and forward_entities.right_entity.entity.position or right_entity_position, right_entity_type, right_entity_direction, nil, entity_unit_number)
+                                step_forward(forward_entities.right_entity.entity, right_entity_unit_number, right_entity_type == 'splitter' and forward_entities.right_entity.entity.position or right_entity_position, right_entity_type, right_entity_direction, nil, entity_unit_number, entity_direction)
                             --end
+                        elseif not right_entity_type == 'splitter' then
+                            local input = read_entity_data[right_entity_unit_number].input
+                            input[#input + 1] = {entity_unit_number,entity_direction}
                         end
                     end
                 end
@@ -346,9 +411,9 @@ local function highlight_belts(selected_entity, player_index)
 
     for unit_number, current_entity in pairs(read_entity_data) do
         if not all_entities_marked[unit_number] then
-            if current_entity[3] == 'underground-belt' and current_entity[6] == 'input' and current_entity[2].underground_neighbour then
+            if current_entity[3] == 'underground-belt' and current_entity[6] == 'input' and current_entity[2].output_target then
                 local start_position = Position(current_entity[1]):copy():translate(current_entity[4], 0.5)
-                local neighbour_entity_data = read_entity_data[current_entity[2].underground_neighbour]
+                local neighbour_entity_data = read_entity_data[current_entity[2].output_target]
                 local end_position = Position(neighbour_entity_data[1]):copy():translate(op_dir(current_entity[4]), 0.5)
                 markers_made = markers_made + 1
                 all_markers[markers_made] =
@@ -368,13 +433,7 @@ local function highlight_belts(selected_entity, player_index)
                 }
                 all_entities_marked[unit_number] = true
             elseif current_entity[3] == 'transport-belt' then
-                markers_made = markers_made + 1
-                all_markers[markers_made] =
-                    create {
-                    name = 'picker-belt-marker-straight-both-lanes' .. map_direction[current_entity[4]],
-                    position = current_entity[1]
-                }
-                all_entities_marked[unit_number] = true
+                mark_belt(unit_number, current_entity)
             else
                 markers_made = markers_made + 1
                 all_markers[markers_made] =

@@ -1,4 +1,4 @@
-local merge = _G.util.merge
+--local merge = _G.util.merge
 
 local base_entity = {
     type = 'simple-entity',
@@ -14,19 +14,59 @@ local base_entity = {
     collision_mask = {"layer-14"},
     selectable_in_game = false,
     --final_render_layer = 'selection-box',
-    animations = {{
+    --[[animations = {{
         width = 64,
         height = 64,
         line_length = 8,
         frame_count = 16,
         direction_count = 1,
-        animation_speed = 0.03125 * 32,
+        animation_speed = 0.03125 * 16,
         scale = 0.5,
         filename = '__PickerBeltTools__/graphics/entity/markers/32x32highlightergood.png'
-    }}
+    }}]]--
 }
 
-local belt_marker_table = {
+local pictures = {}
+for i = 1,64 do
+    local y = 0
+    if i > 16 and i <= 32 then
+        y = 32
+    elseif i > 32 and i <= 48 then
+        y = 64
+    elseif i > 48 and i <= 64 then
+        y = 96
+    end
+    pictures[i] = {
+        width = 32,
+        height = 32,
+        x = ((i-1)%16)*32,
+        y = y,
+        line_length = 16,
+        frame_count = 1,
+        direction_count = 1,
+        --shift = {-0.5,-0.5},
+        filename = '__PickerBeltTools__/graphics/entity/markers/belt-arrow-set-full.png'
+    }
+end
+
+local belt_marker = util.table.deepcopy(base_entity)
+belt_marker.name = 'picker-belt-marker-full'
+belt_marker.pictures = pictures
+
+data:extend({belt_marker})
+
+
+
+
+
+
+
+
+
+
+
+
+--[[local belt_marker_table = {
     ['picker-belt-marker-straight-both-lanes'] = 'belt-animated-both-lane',
     --['picker-pump-marker-good'] = 'pump-marker-good'
 }
@@ -56,7 +96,7 @@ for _, stuff in pairs(new_markers) do
             stuff
         }
     }
-end
+end]]--
 
 
 local base_beam = util.table.deepcopy(data.raw['beam']['electric-beam-no-sound'])
