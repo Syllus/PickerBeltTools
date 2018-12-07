@@ -54,83 +54,139 @@ local belt_marker = util.table.deepcopy(base_entity)
 belt_marker.name = 'picker-belt-marker-full'
 belt_marker.pictures = belt_pictures
 
+data:extend({belt_marker})
+
 local splitter_image_table = {
-    ['splitter-north'] = {
+    {
+        image = 'splitter-marker-north',
         index_multiplier = 1,
         image_size = {
             x = 64,
             y = 32
-        }
+        },
+        selection_box = {
+            {-1, -0.5},
+            {1, 0.5}
+        },
     },
-    ['splitter-east'] = {
+    {
+        image = 'splitter-marker-east',
         index_multiplier = 2,
         image_size = {
             x = 32,
             y = 64
-        }
+        },
+        selection_box = {
+            {-0.5, -1},
+            {0.5, 1}
+        },
     },
-    ['splitter-south'] = {
+    {
+        image = 'splitter-marker-south',
         index_multiplier = 3,
         image_size = {
             x = 64,
             y = 32
-        }
+        },
+        selection_box = {
+            {-1, -0.5},
+            {1, 0.5}
+        },
     },
-    ['splitter-west'] = {
+    {
+        image = 'splitter-marker-west',
         index_multiplier = 4,
         image_size = {
             x = 32,
             y = 64
-        }
+        },
+        selection_box = {
+            {-0.5, -1},
+            {0.5, 1}
+        },
     }
 }
 
-local splitter_pictures = {}
-local counter = 1
-for image, image_data in pairs(splitter_image_table) do
+local splitter_markers = {}
+for _, image_data in pairs(splitter_image_table) do
+    local splitter_pictures = {}
+    --local counter = 1
+    local splitter_marker = util.table.deepcopy(base_entity)
     for i = 1,16 do
-        splitter_pictures[counter] = {
+        local y = 0*image_data.image_size.y
+        if i > 4 and i <= 8 then
+            y = 1*image_data.image_size.y
+        elseif i > 8 and i <= 12 then
+            y = 2*image_data.image_size.y
+        elseif i > 12 and i <= 16 then
+            y = 3*image_data.image_size.y
+        end
+        splitter_pictures[i] = {
             width = image_data.image_size.x,
             height = image_data.image_size.y,
             x = ((i-1)%4)*image_data.image_size.x,
-            y = ((i-1)%4)*image_data.image_size.y,
+            y = y,
             line_length = 4,
             frame_count = 1,
             direction_count = 1,
             --scale = 0.5,
             --shift = {-0.5,-0.5},
-            filename = '__PickerBeltTools__/graphics/entity/markers/' .. image .. '.png'
+            filename = '__PickerBeltTools__/graphics/entity/markers/' .. image_data.image .. '.png'
         }
-        counter = counter + 1
+        --counter = counter + 1
     end
+    splitter_marker.name = 'picker-' .. image_data.image
+    splitter_marker.pictures = splitter_pictures
+    splitter_marker.selection_box = image_data.selection_box
+    splitter_markers[#splitter_markers + 1] = splitter_marker
 end
 
-local splitter_marker = util.table.deepcopy(base_entity)
-splitter_marker.name = 'picker-splitter-marker-full'
-splitter_marker.pictures = splitter_pictures
+data:extend(splitter_markers)
 
+local ug_belt_pictures = {}
+for i = 1,64 do
+    local y = 0
+    if i > 16 and i <= 32 then
+        y = 32
+    elseif i > 32 and i <= 48 then
+        y = 64
+    elseif i > 48 and i <= 64 then
+        y = 96
+    end
+    ug_belt_pictures[i] = {
+        layers = {
+            {
+                width = 32,
+                height = 32,
+                x = ((i-1)%16)*32,
+                y = y,
+                line_length = 16,
+                frame_count = 1,
+                direction_count = 1,
+                --scale = 0.5,
+                --shift = {-0.5,-0.5},
+                filename = '__PickerBeltTools__/graphics/entity/markers/belt-arrow-set-full.png'
+            },
+            {
+                width = 64,
+                height = 64,
+                x = 0,
+                line_length = 5,
+                frame_count = 1,
+                direction_count = 1,
+                scale = 0.5,
+                --shift = {-0.5,-0.5},
+                filename = '__core__/graphics/cursor-boxes-32x32.png'
+            }
+        }
+    }
+end
 
+local ug_belt_marker = util.table.deepcopy(base_entity)
+ug_belt_marker.name = 'picker-ug-belt-marker-full'
+ug_belt_marker.pictures = ug_belt_pictures
 
-
-
-
-
-
-
-
-
-
-
-
-
-data:extend({belt_marker,splitter_marker})
-
-
-
-
-
-
-
+data:extend({ug_belt_marker})
 
 
 
