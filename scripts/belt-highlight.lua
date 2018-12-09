@@ -8,7 +8,7 @@ local Player = require('lib/player')
 local Event = require('lib/event')
 local Position = require('lib/position')
 local op_dir = Position.opposite_direction
-local max_belts = 100
+local max_belts = 50
 
 local map_direction = {
     [0] = 'picker-splitter-marker-north',
@@ -200,6 +200,9 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
         working_table = 2
     end
     pdata.scheduled_markers[working_table] = pdata.scheduled_markers[working_table] or {}
+
+    local forward_entity_queue
+    local backward_entity_queue
 
     --? Cache functions used more than once
     local find_belt = player.surface.find_entities_filtered
@@ -393,7 +396,19 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                         if not all_entities_marked[ug_neighbour_unit_number] then
                             if not read_entity_data[ug_neighbour_unit_number] then
                                 if belts_read < max_belts then
-                                    return step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, 'output', entity_unit_number, entity_direction, nil)
+                                    local queue_slot = forward_entity_queue[2]
+                                    queue_slot[#queue_slot + 1] = {
+                                        ug_neighbour,
+                                        ug_neighbour_unit_number,
+                                        ug_neighbour_position,
+                                        ug_neighbour_type,
+                                        ug_neighbour_direction,
+                                        'output',
+                                        entity_unit_number,
+                                        entity_direction,
+                                        nil
+                                    }
+                                    --return step_forward(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, 'output', entity_unit_number, entity_direction, nil)
                                 else
                                     global.marking = true
                                     global.marking_players[player_index] = true
@@ -434,7 +449,19 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                             if not all_entities_marked[forward_entity_unit_number] then
                                 if not read_entity_data[forward_entity_unit_number] then
                                     if belts_read < max_belts then
-                                        return step_forward(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                        local queue_slot = forward_entity_queue[2]
+                                        queue_slot[#queue_slot + 1] = {
+                                            forward_entity,
+                                            forward_entity_unit_number,
+                                            forward_position,
+                                            forward_entity_type,
+                                            forward_entity_direction,
+                                            nil,
+                                            entity_unit_number,
+                                            entity_direction,
+                                            splitter_input_side
+                                        }
+                                        --return step_forward(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                     else
                                         global.marking = true
                                         global.marking_players[player_index] = true
@@ -485,7 +512,19 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                         if not all_entities_marked[forward_entity_unit_number] then
                             if not read_entity_data[forward_entity_unit_number] then
                                 if belts_read < max_belts then
-                                    return step_forward(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                    local queue_slot = forward_entity_queue[2]
+                                    queue_slot[#queue_slot + 1] = {
+                                        forward_entity,
+                                        forward_entity_unit_number,
+                                        forward_position,
+                                        forward_entity_type,
+                                        forward_entity_direction,
+                                        nil,
+                                        entity_unit_number,
+                                        entity_direction,
+                                        splitter_input_side
+                                    }
+                                    --return step_forward(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                 else
                                     global.marking = true
                                     global.marking_players[player_index] = true
@@ -535,7 +574,19 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                         if not all_entities_marked[left_entity_unit_number] then
                             if not read_entity_data[left_entity_unit_number] then
                                 if belts_read < max_belts then
-                                    step_forward(forward_entities.left_entity.entity, left_entity_unit_number, left_entity_position, left_entity_type, left_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                    local queue_slot = forward_entity_queue[2]
+                                    queue_slot[#queue_slot + 1] = {
+                                        forward_entities.left_entity.entity,
+                                        left_entity_unit_number,
+                                        left_entity_position,
+                                        left_entity_type,
+                                        left_entity_direction,
+                                        nil,
+                                        entity_unit_number,
+                                        entity_direction,
+                                        splitter_input_side
+                                    }
+                                    --step_forward(forward_entities.left_entity.entity, left_entity_unit_number, left_entity_position, left_entity_type, left_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                 else
                                     global.marking = true
                                     global.marking_players[player_index] = true
@@ -550,7 +601,6 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                                             entity_unit_number
                                         }
                                     }
-                                    mark_scheduled_point(entity_unit_number, read_entity_data[entity_unit_number])
                                     --cache_forward_entity(forward_entities.left_entity.entity, left_entity_unit_number, left_entity_position, left_entity_type, left_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                 end
                             else
@@ -582,7 +632,19 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                         if not all_entities_marked[right_entity_unit_number] then
                             if not read_entity_data[right_entity_unit_number] then
                                 if belts_read < max_belts then
-                                    step_forward(forward_entities.right_entity.entity, right_entity_unit_number, right_entity_position, right_entity_type, right_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                    local queue_slot = forward_entity_queue[2]
+                                    queue_slot[#queue_slot + 1] = {
+                                        forward_entities.right_entity.entity,
+                                        right_entity_unit_number,
+                                        right_entity_position,
+                                        right_entity_type,
+                                        right_entity_direction,
+                                        nil,
+                                        entity_unit_number,
+                                        entity_direction,
+                                        splitter_input_side
+                                    }
+                                    --step_forward(forward_entities.right_entity.entity, right_entity_unit_number, right_entity_position, right_entity_type, right_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                 else
                                     global.marking = true
                                     global.marking_players[player_index] = true
@@ -614,10 +676,48 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                 end
             end
         end
-        if forward then
+
+            --local belt_to_ground_direction = stitch_data and stitch_data[1] or starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type
+            --step_forward(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction, belt_to_ground_direction, stitch_data and stitch_data[4], stitch_data and stitch_data[3],stitch_data and stitch_data[2])
+        local function bfs_forward()
             local belt_to_ground_direction = stitch_data and stitch_data[1] or starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type
-            step_forward(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction, belt_to_ground_direction, stitch_data and stitch_data[4], stitch_data and stitch_data[3],stitch_data and stitch_data[2])
+            forward_entity_queue = {
+                {
+                    {
+                        starter_entity,
+                        starter_unit_number,
+                        starter_entity_position,
+                        starter_entity_type,
+                        starter_entity_direction,
+                        belt_to_ground_direction,
+                        stitch_data and stitch_data[4],
+                        stitch_data and stitch_data[3],
+                        stitch_data and stitch_data[2]
+                    }
+                },
+                {}
+            }
+            local queue = true
+            while queue do
+                if next(forward_entity_queue[1]) then
+                    game.print("We're in queue 1")
+                    local current_table = forward_entity_queue[1]
+                    local current_entity = table.remove(current_table)
+                    step_forward(current_entity[1], current_entity[2], current_entity[3], current_entity[4], current_entity[5], current_entity[6], current_entity[7], current_entity[8], current_entity[9])
+                elseif next(forward_entity_queue[2]) then
+                    game.print("We're in queue 2")
+                    table.remove(forward_entity_queue,1)
+                    forward_entity_queue[2] = {}
+                else
+                    game.print("Nothing left in the queue")
+                    queue = false
+                end
+            end
         end
+        if forward then
+            bfs_forward()
+        end
+
 
 
         local function read_backward_belt(current_entity)
@@ -823,7 +923,18 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                 if not all_entities_marked[neighbour_unit_number] then
                     if not read_entity_data[neighbour_unit_number] then
                         if belts_read < max_belts then
-                            return step_backward(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
+                            local queue_slot = backward_entity_queue[2]
+                                queue_slot[#queue_slot + 1] = {
+                                    neighbour[5],
+                                    neighbour_unit_number,
+                                    neighbour_position,
+                                    neighbour_type,
+                                    neighbour_direction,
+                                    neighbour.belt_to_ground_direction,
+                                    entity_unit_number,
+                                    splitter_output_side
+                                }
+                            --return step_backward(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                         else
                             --game.print(serpent.line(entity_neighbours))
                             global.marking = true
@@ -963,7 +1074,18 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                     if not all_entities_marked[neighbour_unit_number] then
                         if not read_entity_data[neighbour_unit_number] then
                             if belts_read < max_belts then
-                                step_backward(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
+                                local queue_slot = backward_entity_queue[2]
+                                queue_slot[#queue_slot + 1] = {
+                                    neighbour[5],
+                                    neighbour_unit_number,
+                                    neighbour_position,
+                                    neighbour_type,
+                                    neighbour_direction,
+                                    neighbour.belt_to_ground_direction,
+                                    entity_unit_number,
+                                    splitter_output_side
+                                }
+                                --step_backward(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                             else
                                 global.marking = true
                                 global.marking_players[player_index] = true
@@ -1003,7 +1125,18 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                     if not all_entities_marked[neighbour_unit_number] then
                         if not read_entity_data[neighbour_unit_number] then
                             if belts_read < max_belts then
-                                step_backward(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
+                                local queue_slot = backward_entity_queue[2]
+                                queue_slot[#queue_slot + 1] = {
+                                    neighbour[5],
+                                    neighbour_unit_number,
+                                    neighbour_position,
+                                    neighbour_type,
+                                    neighbour_direction,
+                                    neighbour.belt_to_ground_direction,
+                                    entity_unit_number,
+                                    splitter_output_side
+                                }
+                                --step_backward(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                             else
                                 global.marking = true
                                 global.marking_players[player_index] = true
@@ -1031,10 +1164,47 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                 end
             end
         end
+        local function bfs_backward()
+            local belt_to_ground_direction = stitch_data and stitch_data[1] or starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type
+            backward_entity_queue = {
+                {
+                    {
+                        starter_entity,
+                        starter_unit_number,
+                        starter_entity_position,
+                        starter_entity_type,
+                        starter_entity_direction,
+                        belt_to_ground_direction,
+                        stitch_data and stitch_data[3],
+                        stitch_data and stitch_data[2]
+                    }
+                },
+                {}
+            }
+            local queue = true
+            while queue do
+                if next(backward_entity_queue[1]) then
+                    game.print("We're in queue 1")
+                    local current_table = backward_entity_queue[1]
+                    local current_entity = table.remove(current_table)
+                    step_backward(current_entity[1], current_entity[2], current_entity[3], current_entity[4], current_entity[5], current_entity[6], current_entity[7], current_entity[8])
+                elseif next(backward_entity_queue[2]) then
+                    game.print("We're in queue 2")
+                    table.remove(backward_entity_queue,1)
+                    backward_entity_queue[2] = {}
+                else
+                    game.print("Nothing left in the queue")
+                    queue = false
+                end
+            end
+        end
         if backward then
+            bfs_backward()
+        end
+        --[[if backward then
             local belt_to_ground_direction = stitch_data and stitch_data[1] and stitch_data[1] or starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type
             step_backward(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction, belt_to_ground_direction, stitch_data and stitch_data[3], stitch_data and stitch_data[2])
-        end
+        end]]--
     end
     read_belts(selected_entity)
 
