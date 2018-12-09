@@ -36,6 +36,24 @@ local marker_entry = {
     [85] = 16
 }
 
+local bitwise_marker_entry = {
+    [0x00] = 1,
+    [0x01] = 2,
+    [0x04] = 3,
+    [0x05] = 4,
+    [0x10] = 5,
+    [0x11] = 6,
+    [0x14] = 7,
+    [0x15] = 8,
+    [0x40] = 9,
+    [0x41] = 10,
+    [0x44] = 11,
+    [0x45] = 12,
+    [0x50] = 13,
+    [0x51] = 14,
+    [0x54] = 15,
+    [0x55] = 16
+  }
 
 local function show_underground_sprites(event)
     local player, pdata = Player.get(event.player_index)
@@ -160,8 +178,9 @@ local splitter_check_table = {
 --[[local function copy_position(position)
     return {x=position.x,y=position.y}
 end]]--
-
-local function highlight_belts(selected_entity, player_index, forward, backward)
+local bor = bit32.bor
+local lshift = bit32.lshift
+local function highlight_belts(selected_entity, player_index, forward, backward, stitch_data)
     local player, pdata = Player.get(player_index)
     --local belt_table = {}
     local read_entity_data = {}
@@ -233,18 +252,19 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
     local function get_directions_ug_belt(current_entity)
         local table_entry = 0
         local entity_neighbours = current_entity[2]
-        table_entry = current_entity[2].output_target and (table_entry + (2^current_entity[4])) or table_entry
+        table_entry = current_entity[2].output_target and bor(table_entry, lshift(1, current_entity[4])) or table_entry
         if entity_neighbours.input then
             for _, direction_data in pairs(entity_neighbours.input) do
-                table_entry = table_entry + (2 ^ op_dir(direction_data[2]))
+                table_entry = bor(table_entry, lshift(1, op_dir(direction_data[2])))
             end
         end
         return table_entry
     end
 
+--((
     local function mark_ug_belt(unit_number, current_entity)
         markers_made = markers_made + 1
-        local new_marker  = create {
+        local new_marker = create {
             name = 'picker-ug-belt-marker-full',
             position = current_entity[1]
         }
@@ -254,29 +274,28 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
         all_markers[markers_made] = new_marker
         all_entities_marked[unit_number] = true
     end
+--))
 
     local function get_directions_belt(current_entity)
         local table_entry = 0
         local entity_neighbours = current_entity[2]
         if entity_neighbours.input then
             for _, direction_data in pairs(entity_neighbours.input) do
-                table_entry = table_entry + (2 ^ op_dir(direction_data[2]))
+                table_entry = bor(table_entry, lshift(1, op_dir(direction_data[2])))
             end
         end
-        if current_entity[2].output_target then
-            table_entry = table_entry + (2 ^ current_entity[4])
-        end
+        table_entry = current_entity[2].output_target and bor(table_entry, lshift(1, current_entity[4])) or table_entry
         return table_entry
-    end
+      end
 
     local function mark_belt(unit_number, current_entity)
         markers_made = markers_made + 1
-        local new_marker  = create {
+        local new_marker = create {
             name = 'picker-belt-marker-full',
             position = current_entity[1]
         }
         local map_dir = current_entity[4]/2
-        local graphics_change = (16*map_dir) + marker_entry[get_directions_belt(current_entity)]
+        local graphics_change = (16*map_dir) + bitwise_marker_entry[get_directions_belt(current_entity)]
         new_marker.graphics_variation = graphics_change
         all_markers[markers_made] = new_marker
         all_entities_marked[unit_number] = true
@@ -285,10 +304,10 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
     local function get_directions_splitter(current_entity)
         local neighbours = current_entity[2]
         local directions_map = 0
-        directions_map = neighbours.left_output_target and (directions_map + (2 ^ 0)) or directions_map
-        directions_map = neighbours.right_output_target and (directions_map + (2 ^ 2)) or directions_map
-        directions_map = neighbours.right and (directions_map + (2 ^ 4)) or directions_map
-        directions_map = neighbours.left and (directions_map + (2 ^ 6)) or directions_map
+        directions_map = neighbours.left_output_target and bor(directions_map, lshift(1, 0)) or directions_map
+        directions_map = neighbours.right_output_target and bor(directions_map, lshift(1, 2)) or directions_map
+        directions_map = neighbours.right and bor(directions_map, lshift(1, 4)) or directions_map
+        directions_map = neighbours.left and bor(directions_map, lshift(1, 6)) or directions_map
         return directions_map
     end
 
@@ -298,10 +317,19 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
             name = map_direction[current_entity[4]],
             position = current_entity[1]
         }
-        local graphics_change = marker_entry[get_directions_splitter(current_entity)]
+        local graphics_change = bitwise_marker_entry[get_directions_splitter(current_entity)]
         new_marker.graphics_variation = graphics_change
         all_markers[markers_made] = new_marker
         all_entities_marked[unit_number] = true
+    end
+
+    local function mark_scheduled_point(unit_number, current_entity)
+        markers_made = markers_made + 1
+        all_markers[markers_made] =
+            create {
+            name = 'picker-pipe-marker-box-bad',
+            position = current_entity[1]
+        }
     end
 
     local function cache_forward_entity(entity, entity_unit_number, entity_position, entity_type, entity_direction, belt_to_ground_direction, previous_entity_unit_number, previous_entity_direction, previous_entity_input_side)
@@ -370,7 +398,15 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                     global.marking = true
                                     global.marking_players[player_index] = true
                                     local wt = pdata.scheduled_markers[working_table]
-                                    wt[#wt + 1] = {ug_neighbour, 'forward'}
+                                    wt[#wt + 1] = {
+                                        ug_neighbour,
+                                        'forward',
+                                        {
+                                            'output',
+                                            false,
+                                            false
+                                        }
+                                    }
                                     cache_forward_entity(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, 'output', entity_unit_number, entity_direction, nil)
                                 end
                             else
@@ -403,8 +439,18 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                         global.marking = true
                                         global.marking_players[player_index] = true
                                         local wt = pdata.scheduled_markers[working_table]
-                                        wt[#wt + 1] = {forward_entity, 'forward'}
-                                        cache_forward_entity(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                        wt[#wt + 1] = {
+                                            forward_entity,
+                                            'forward',
+                                            {
+                                                false,
+                                                splitter_input_side,
+                                                entity_direction,
+                                                entity_unit_number
+                                            }
+                                        }
+                                        mark_scheduled_point(entity_unit_number, read_entity_data[entity_unit_number])
+                                        --cache_forward_entity(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                     end
                                 else
                                     if forward_entity_type ~= 'splitter' then
@@ -444,8 +490,18 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                     global.marking = true
                                     global.marking_players[player_index] = true
                                     local wt = pdata.scheduled_markers[working_table]
-                                    wt[#wt + 1] = {forward_entity, 'forward'}
-                                    cache_forward_entity(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                    wt[#wt + 1] = {
+                                        forward_entity,
+                                        'forward',
+                                        {
+                                            false,
+                                            splitter_input_side,
+                                            entity_direction,
+                                            entity_unit_number
+                                        }
+                                    }
+                                    mark_scheduled_point(entity_unit_number, read_entity_data[entity_unit_number])
+                                    --cache_forward_entity(forward_entity, forward_entity_unit_number, forward_position, forward_entity_type, forward_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                 end
                             else
                                 if forward_entity_type ~= 'splitter' then
@@ -484,8 +540,18 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                     global.marking = true
                                     global.marking_players[player_index] = true
                                     local wt = pdata.scheduled_markers[working_table]
-                                    wt[#wt + 1] = {forward_entities.left_entity.entity, 'forward'}
-                                    cache_forward_entity(forward_entities.left_entity.entity, left_entity_unit_number, left_entity_position, left_entity_type, left_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                    wt[#wt + 1] = {
+                                        forward_entities.left_entity.entity,
+                                        'forward',
+                                        {
+                                            false,
+                                            splitter_input_side,
+                                            entity_direction,
+                                            entity_unit_number
+                                        }
+                                    }
+                                    mark_scheduled_point(entity_unit_number, read_entity_data[entity_unit_number])
+                                    --cache_forward_entity(forward_entities.left_entity.entity, left_entity_unit_number, left_entity_position, left_entity_type, left_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                 end
                             else
                                 if left_entity_type ~= 'splitter' then
@@ -521,8 +587,18 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                     global.marking = true
                                     global.marking_players[player_index] = true
                                     local wt = pdata.scheduled_markers[working_table]
-                                    wt[#wt + 1] = {forward_entities.right_entity.entity, 'forward'}
-                                    cache_forward_entity(forward_entities.right_entity.entity, right_entity_unit_number, right_entity_position, right_entity_type, right_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
+                                    wt[#wt + 1] = {
+                                        forward_entities.right_entity.entity,
+                                        'forward',
+                                        {
+                                            false,
+                                            splitter_input_side,
+                                            entity_direction,
+                                            entity_unit_number
+                                        }
+                                    }
+                                    mark_scheduled_point(entity_unit_number, read_entity_data[entity_unit_number])
+                                    --cache_forward_entity(forward_entities.right_entity.entity, right_entity_unit_number, right_entity_position, right_entity_type, right_entity_direction, nil, entity_unit_number, entity_direction, splitter_input_side)
                                 end
                             else
                                 if right_entity_type ~= 'splitter' then
@@ -539,7 +615,8 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
             end
         end
         if forward then
-            step_forward(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction, starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type or nil)
+            local belt_to_ground_direction = stitch_data and stitch_data[1] or starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type
+            step_forward(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction, belt_to_ground_direction, stitch_data and stitch_data[4], stitch_data and stitch_data[3],stitch_data and stitch_data[2])
         end
 
 
@@ -572,7 +649,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 if belt_to_ground_direction ~= 'input' then
                     backstep_data.left_feed_entity_data = {
                         left_feed_position,
-                        true,
+                        {},
                         left_feed_type,
                         left_feed_direction,
                         left_feed_entity,
@@ -586,7 +663,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 if belt_to_ground_direction ~= 'input' then
                     backstep_data.rear_feed_entity_data = {
                         rear_feed_position,
-                        true,
+                        {},
                         rear_feed_type,
                         rear_feed_direction,
                         rear_feed_entity,
@@ -600,7 +677,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 if belt_to_ground_direction ~= 'input' then
                     backstep_data.right_feed_entity_data = {
                         right_feed_position,
-                        true,
+                        {},
                         right_feed_type,
                         right_feed_direction,
                         right_feed_entity,
@@ -633,7 +710,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 if belt_to_ground_direction ~= 'input' then
                     backstep_data.left_feed_entity_data = {
                         left_feed_position,
-                        true,
+                        {},
                         left_feed_type,
                         left_feed_direction,
                         left_feed_entity,
@@ -647,7 +724,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 if belt_to_ground_direction ~= 'input' then
                     backstep_data.right_feed_entity_data = {
                         right_feed_position,
-                        true,
+                        {},
                         right_feed_type,
                         right_feed_direction,
                         right_feed_entity,
@@ -679,7 +756,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 if belt_to_ground_direction ~= 'input' then
                     backstep_data.left_feed_entity_data = {
                         left_feed_position,
-                        true,
+                        {},
                         left_feed_type,
                         left_feed_direction,
                         left_feed_entity,
@@ -693,7 +770,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 if belt_to_ground_direction ~= 'input' then
                     backstep_data.right_feed_entity_data = {
                         right_feed_position,
-                        true,
+                        {},
                         right_feed_type,
                         right_feed_direction,
                         right_feed_entity,
@@ -748,11 +825,21 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                         if belts_read < max_belts then
                             return step_backward(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                         else
+                            --game.print(serpent.line(entity_neighbours))
                             global.marking = true
                             global.marking_players[player_index] = true
                             local wt = pdata.scheduled_markers[working_table]
-                            wt[#wt + 1] = {neighbour[5], 'backward'}
-                            cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
+                            wt[#wt + 1] = {
+                                neighbour[5],
+                                'backward',
+                                {
+                                    false,
+                                    splitter_output_side,
+                                    entity_unit_number
+                                }
+                            }
+                            mark_scheduled_point(entity_unit_number, current_entity)
+                            --return cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                         end
                     else
                         if neighbour_type ~= 'splitter' then
@@ -806,7 +893,15 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                     global.marking = true
                                     global.marking_players[player_index] = true
                                     local wt = pdata.scheduled_markers[working_table]
-                                    wt[#wt + 1] = {ug_neighbour, 'backward'}
+                                    wt[#wt + 1] = {
+                                        ug_neighbour,
+                                        'backward',
+                                        {
+                                            'input',
+                                            false,
+                                            entity_unit_number
+                                        }
+                                    }
                                     cache_backward_entity(ug_neighbour, ug_neighbour_unit_number, ug_neighbour_position, ug_neighbour_type, ug_neighbour_direction, 'input', entity_unit_number)
                                 end
                             else
@@ -873,8 +968,17 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                 global.marking = true
                                 global.marking_players[player_index] = true
                                 local wt = pdata.scheduled_markers[working_table]
-                                wt[#wt + 1] = {neighbour[5], 'backward'}
-                                cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
+                                wt[#wt + 1] = {
+                                    neighbour[5],
+                                    'backward',
+                                    {
+                                        false,
+                                        splitter_output_side,
+                                        entity_unit_number
+                                    }
+                                }
+                                mark_scheduled_point(entity_unit_number, current_entity)
+                                --cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                             end
                         else
                             if neighbour_type ~= 'splitter' then
@@ -904,8 +1008,17 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                                 global.marking = true
                                 global.marking_players[player_index] = true
                                 local wt = pdata.scheduled_markers[working_table]
-                                wt[#wt + 1] = {neighbour[5], 'backward'}
-                                cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
+                                wt[#wt + 1] = {
+                                    neighbour[5],
+                                    'backward',
+                                    {
+                                        false,
+                                        splitter_output_side,
+                                        entity_unit_number
+                                    }
+                                }
+                                mark_scheduled_point(entity_unit_number, current_entity)
+                                --cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                             end
                         else
                             if neighbour_type ~= 'splitter' then
@@ -919,7 +1032,8 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
             end
         end
         if backward then
-            step_backward(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction, starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type or nil)
+            local belt_to_ground_direction = stitch_data and stitch_data[1] and stitch_data[1] or starter_entity_type == "underground-belt" and starter_entity.belt_to_ground_type
+            step_backward(starter_entity, starter_unit_number, starter_entity_position, starter_entity_type, starter_entity_direction, belt_to_ground_direction, stitch_data and stitch_data[3], stitch_data and stitch_data[2])
         end
     end
     read_belts(selected_entity)
@@ -932,8 +1046,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward)
                 local end_position = Position(neighbour_entity_data[1]):copy():translate(op_dir(current_entity[4]), 0.5)
                 mark_ug_belt(unit_number, current_entity)
                 markers_made = markers_made + 1
-                all_markers[markers_made] =
-                    create {
+                all_markers[markers_made] = create {
                     name = 'picker-underground-belt-marker-beam',
                     position = current_entity[1],
                     source_position = {start_position.x, start_position.y + 1},
@@ -970,6 +1083,8 @@ local function get_beltline(event)
         if selection and allowed_types[selection.type] then
             if not pdata.current_beltnet_table[selection.unit_number] then
                 if next(pdata.current_beltnet_table) then
+                    --destroy_markers(pdata.current_marker_table)
+                    --destroy_markers(pdata.current_beltnet_table)
                     destroy_markers(pdata.current_marker_table)
                     pdata.current_beltnet_table = nil
                     pdata.current_marker_table = nil
@@ -979,6 +1094,8 @@ local function get_beltline(event)
             end
         else
             if next(pdata.current_beltnet_table) then
+                --destroy_markers(pdata.current_marker_table)
+                --destroy_markers(pdata.current_beltnet_table)
                 destroy_markers(pdata.current_marker_table)
                 pdata.current_beltnet_table = nil
                 pdata.current_marker_table = nil
@@ -996,7 +1113,9 @@ local function highlight_scheduler()
         local wt = pdata.scheduled_markers and pdata.scheduled_markers[1]
         if wt and next(wt) then
             local next_belt = table.remove(wt,1)
-            highlight_belts(next_belt[1], player_index, next_belt[2] == 'forward' and true or false, next_belt[2] == 'backward' and true or false)
+            if next_belt[1].valid then
+                highlight_belts(next_belt[1], player_index, next_belt[2] == 'forward' and true or false, next_belt[2] == 'backward' and true or false, next_belt[3])
+            end
             break
         elseif pdata.scheduled_markers and not next(pdata.scheduled_markers[1]) and pdata.scheduled_markers[2] and next(pdata.scheduled_markers[2]) then
             table.remove(pdata.scheduled_markers, 1)
