@@ -323,14 +323,14 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
         all_entities_marked[unit_number] = true
     end
 
-    local function mark_scheduled_point(_, current_entity)
+    --[[local function mark_scheduled_point(_, current_entity)
         markers_made = markers_made + 1
         all_markers[markers_made] =
             create {
             name = 'picker-pipe-marker-box-bad',
             position = current_entity[1]
         }
-    end
+    end]]--
 
     local function cache_forward_entity(entity, entity_unit_number, entity_position, entity_type, entity_direction, belt_to_ground_direction, previous_entity_unit_number, previous_entity_direction, previous_entity_input_side)
         local entity_neighbours = {}
@@ -837,7 +837,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                                     entity_unit_number
                                 }
                             }
-                            mark_scheduled_point(entity_unit_number, current_entity)
+                            --mark_scheduled_point(entity_unit_number, current_entity)
                             --return cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                         end
                     else
@@ -980,7 +980,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                                         entity_unit_number
                                     }
                                 }
-                                mark_scheduled_point(entity_unit_number, current_entity)
+                                --mark_scheduled_point(entity_unit_number, current_entity)
                                 --cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                             end
                         else
@@ -1020,7 +1020,7 @@ local function highlight_belts(selected_entity, player_index, forward, backward,
                                         entity_unit_number
                                     }
                                 }
-                                mark_scheduled_point(entity_unit_number, current_entity)
+                                --mark_scheduled_point(entity_unit_number, current_entity)
                                 --cache_backward_entity(neighbour[5], neighbour_unit_number, neighbour_position, neighbour_type, neighbour_direction, neighbour.belt_to_ground_direction, entity_unit_number, splitter_output_side)
                             end
                         else
